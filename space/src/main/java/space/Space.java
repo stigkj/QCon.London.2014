@@ -1,6 +1,5 @@
 package space;
 
-import javax.swing.JFrame;
 import java.awt.Color;
 import java.awt.EventQueue;
 import java.awt.Graphics;
@@ -16,6 +15,8 @@ import java.awt.image.BufferedImage;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.JFrame;
+import common.PhysicalObject;
 
 public class Space extends JFrame implements MouseWheelListener,
         MouseMotionListener, KeyListener {
@@ -28,7 +29,6 @@ public class Space extends JFrame implements MouseWheelListener,
     private static final long serialVersionUID = 1532817796535372081L;
 
     private static final double G = 6.67428e-11; // m3/kgs2
-    public static double seconds = 1;
     private static List<PhysicalObject> objects = new ArrayList<PhysicalObject>();
     static double centrex = 0.0;
     static double centrey = 0.0;
@@ -45,6 +45,29 @@ public class Space extends JFrame implements MouseWheelListener,
         Space.frame = this;
     }
 
+    public void paintPhysicalObject(PhysicalObject physicalObject, Graphics2D graphics) {
+        if (!IS_BOUNCING_BALLS) {
+            graphics.setColor(weightToColor(physicalObject.mass));
+            int diameter = physicalObject.mass >= EARTH_WEIGHT * 10000 ? 7 : 2;
+            int xtmp = (int) ((physicalObject.x - centrex) / scale + frame.getSize().width / 2);
+            int ytmp = (int) ((physicalObject.y - centrey) / scale + frame.getSize().height / 2);
+            graphics.fillOval(
+                    xtmp-diameter/2,
+                    ytmp-diameter/2,
+                    diameter,
+                    diameter);
+        } else { //BREAKOUT
+            graphics.setColor(Color.WHITE);
+            int xtmp = (int) ((physicalObject.x - centrex)  + frame.getSize().width / 2);
+            int ytmp = (int) ((physicalObject.y - centrey)  + frame.getSize().height / 2);
+            graphics.fillOval(
+                (int) (xtmp - physicalObject.radius),
+                (int) (ytmp - physicalObject.radius),
+                (int) (2 * physicalObject.radius),
+                (int) (2 * physicalObject.radius));
+        }
+    }
+
     @Override
     public void paint(Graphics original) {
         if (original != null) {
@@ -55,7 +78,7 @@ public class Space extends JFrame implements MouseWheelListener,
                 graphics.clearRect(0, 0, getWidth(), getHeight());
             }
             for (PhysicalObject po : objects) {
-                po.paintPhysicalObject(graphics);
+                paintPhysicalObject(po, graphics);
                 String string = "Objects:" + objects.size() + " scale:" + scale + " steps:" + step + " frame rate: " + frameRate;
                 setTitle(string);
             }
@@ -85,8 +108,7 @@ public class Space extends JFrame implements MouseWheelListener,
         space.setSize(800, 820);
 
         if (!IS_BOUNCING_BALLS) {
-            space.setStepSize(3600 * 24 * 7);
-
+            double seconds = 3600 * 24 * 7;
             double outerLimit = ASTRONOMICAL_UNIT * 20;
 
             for (int i = 0; i < nrOfObjects; i++) {
@@ -99,20 +121,21 @@ public class Space extends JFrame implements MouseWheelListener,
 
                 double vx = speedRandom * Math.sin(angle - Math.PI / 2);
                 double vy = speedRandom * Math.cos(angle - Math.PI / 2);
-                add(weightKilos, x, y, vx, vy, 1);
+                space.add(weightKilos, x, y, vx, vy, 1, seconds);
             }
 
             scale = outerLimit / space.getWidth();
 
-            add(EARTH_WEIGHT * 20000, 0, 0, 0, 0, 1);
+            space.add(EARTH_WEIGHT * 20000, 0, 0, 0, 0, 1, seconds);
         } else {
             nrOfObjects = 50;
-            space.setStepSize(1); // One second per iteration
+            double seconds= 1;
+
             for (int i = 0; i < nrOfObjects; i++) {
                 // radius,weight in [1,20]
                 double radiusAndWeight = 1 + 19 * Math.random();
                 //x,y in [max radius, width or height - max radius]
-                Space.add(radiusAndWeight, 20 + 760 * Math.random(), 20 + 760 * Math.random(), 3 - 6 * Math.random(), 3 - 6 * Math.random(), radiusAndWeight);
+                space.add(radiusAndWeight, 20 + 760 * Math.random(), 20 + 760 * Math.random(), 3 - 6 * Math.random(), 3 - 6 * Math.random(), radiusAndWeight, seconds);
             }
             scale = 1;
             centrex = 400;
@@ -147,14 +170,10 @@ public class Space extends JFrame implements MouseWheelListener,
         return random * random;
     }
 
-    public void setStepSize(double seconds) {
-        Space.seconds = seconds;
-    }
-
-    public static PhysicalObject add(double weightKilos, double x, double y,
-                                     double vx, double vy, double radius) {
+    public PhysicalObject add(double weightKilos, double x, double y,
+                                     double vx, double vy, double radius, double seconds) {
         PhysicalObject physicalObject = new PhysicalObject(weightKilos, x, y,
-                vx, vy, radius);
+                vx, vy, radius, seconds);
         objects.add(physicalObject);
         return physicalObject;
     }
@@ -176,15 +195,15 @@ public class Space extends JFrame implements MouseWheelListener,
                 }
                 double ax = fx / aff.mass;
                 double ay = fy / aff.mass;
-                aff.x = aff.x - ax * Math.pow(seconds, 2) / 2 + aff.vx * seconds;
-                aff.y = aff.y - ay * Math.pow(seconds, 2) / 2 + aff.vy * seconds;
-                aff.vx = aff.vx - ax * seconds;
-                aff.vy = aff.vy - ay * seconds;
+                aff.x = aff.x - ax * Math.pow(aff.seconds, 2) / 2 + aff.vx * aff.seconds;
+                aff.y = aff.y - ay * Math.pow(aff.seconds, 2) / 2 + aff.vy * aff.seconds;
+                aff.vx = aff.vx - ax * aff.seconds;
+                aff.vy = aff.vy - ay * aff.seconds;
             }
         } else {
             for (PhysicalObject physicalObject : objects) {
-                physicalObject.x = physicalObject.x + physicalObject.vx * seconds;
-                physicalObject.y = physicalObject.y + physicalObject.vy * seconds;
+                physicalObject.x = physicalObject.x + physicalObject.vx * physicalObject.seconds;
+                physicalObject.y = physicalObject.y + physicalObject.vy * physicalObject.seconds;
             }
 
         }
